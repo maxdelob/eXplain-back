@@ -2,11 +2,13 @@ var createError = require('http-errors');
 var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser');
+var cors = require('cors')
 var logger = require('morgan');
 
 
 const indexRouter = require('./routes/index');
 const themeRouter = require('./routes/themes');
+const territoriesRouter = require('./routes/territories');
 var usersRouter = require('./routes/users');
 
 var app = express();
@@ -20,9 +22,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(cors())
 
 app.use('/', indexRouter);
 app.use('/themes', themeRouter);
+app.use('/territories', territoriesRouter);
 app.use('/users', usersRouter);
 
 
