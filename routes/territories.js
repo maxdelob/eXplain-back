@@ -73,7 +73,7 @@ router.get('/getTreeData', (req, res, next) => {
 router.get('/getIdByNameAndTreeLevel')
 
 router.get('/getCommunesByDepartements/:name', (req, res, next) => {
-    pool.query(`SELECT  id FROM territories where kind = 'FRDEPA' AND name =  '${req.params.name}' `, (err, dbDepart) => {
+    pool.query(`SELECT id FROM territories where kind = 'FRDEPA' AND name =  '${req.params.name}' `, (err, dbDepart) => {
         if (dbDepart.rows.length === 1) {
             pool.query(`SELECT  id, parent_id, name FROM territories where kind = 'FREPCI' AND parent_id =  '${dbDepart.rows[0].id}'`, (err, dbEpci) => {
                 const ecpiIds = dbEpci.rows.map(elm => elm.id);
@@ -145,33 +145,43 @@ router.post('/findByName', (req, res) => {
 
 router.get('/tree/:id', (req, res) => {
     const list = [];
-
-    pool.query(`SELECT id, name, ${req.query.level} as level FROM territories  WHERE parent_id =  '${req.params.id}' `, (err, dbRes) => {
-        if (req.query.level == 2) {
+    pool.query(`SELECT id, name FROM territories  WHERE parent_id =  '${req.params.id}' `, (err, dbRes) => {
+        if (req.query.level == 2 || req.query.level == 3) {
             pool.query(`SELECT id, parent_id FROM territories  WHERE id =  '${req.params.id}' `, (err, dbIdParentRes) => {
-                dbRes.rows.forEach(elm => {
-                    const obj = {
-                        'idLevelO': dbIdParentRes.rows[0]['parent_id'],
-                        'idLevel1': dbIdParentRes.rows[0]['id'],
-                        'idLevel2': dbRes.rows[0].id,
-                        'children': []
-                    };
-
-                    console.log({
-                        ...elm,
-                        ...obj
+                pool.query(`SELECT parent_id FROM territories  WHERE id =  '${dbIdParentRes.rows[0]['parent_id']}' `, (err, dbIdGrandParentRes) => {
+                    dbRes.rows.forEach(elm => {
+                        const obj = {
+                            'level':  parseInt(req.query.level),
+                            'children': [],
+                            'isToggled': false,
+                            'isExpended': false
+                        }
+                        if (req.query.level == 2) {
+                            obj.idLevel0 = dbIdParentRes.rows[0]['parent_id'];
+                            obj.idLevel1 = dbIdParentRes.rows[0]['id'];
+                            obj.idLevel2 = elm.id;
+                        }
+                        if (req.query.level == 3) {
+                            obj.idLevel0 = dbIdGrandParentRes.rows[0]['parent_id'];
+                            obj.idLevel1 = dbIdParentRes.rows[0]['parent_id'];
+                            obj.idLevel2 = dbIdParentRes.rows[0]['id'];
+                            obj.idLevel3 = elm.id
+                        }
+                        list.push({
+                            ...elm,
+                            ...obj
+                        });
                     })
-                    list.push({
-                        ...elm,
-                        ...obj
-                    });
+                    res.send(list);
                 })
-                res.send(list);
             })
-        } else {
+        }
+        else {
             dbRes.rows.forEach(elm => {
                 const obj = {
-                    'children': []
+                    'children': [],
+                    'isToggled': false,
+                    'isExpended': false
                 };
                 list.push({
                     ...elm,
@@ -185,6 +195,7 @@ router.get('/tree/:id', (req, res) => {
 
 
 router.get('/initTree', (req, res) => {
+    pool.query("SELECT  id, name FROM territories where kind = 'PAYS'", (err, dbPays) => {
     pool.query("SELECT  id, parent_id, name FROM territories where kind = 'FRREGI' order by name asc", (err, dbRegion) => {
         pool.query("SELECT  id, parent_id, name FROM territories where kind = 'FRDEPA'", (err, dbDepart) => {
             pool.query("SELECT  id, parent_id, name FROM territories where kind = 'FREPCI'", (err, dbEpci) => {
@@ -213,26 +224,30 @@ router.get('/initTree', (req, res) => {
                 dbRegion.rows.forEach(region => {
 
                     const objRegionParsed = {};
-                    objRegionParsed.idLevelO = region.id;
+                    objRegionParsed.idLevel0 = region.id;
                     objRegionParsed.name = region.name;
                     objRegionParsed.id = region.id;
                     objRegionParsed.level = 0;
+                    objRegionParsed.isToggled = false;
+                    objRegionParsed.isExpended = false;
 
                     const listDepParsed = [];
                     hashDepartement.get(region.id).forEach(dep => {
                         const _obj = {};
-                        _obj.idLevelO = region.id;
+                        _obj.idLevel0 = region.id;
                         _obj.idLevel1 = dep.id;
                         _obj.name = dep.name;
                         _obj.id = dep.id;
                         _obj.level = 1;
+                        _obj.isToggled = false
+                        _obj.isExpended = false;
 
 
                         // if(hashEpci.get(dep.id)){ // no EPCI for Hauts-de-Seine for example
                         //     const listEpciParsed = [];
                         //     hashEpci.get(dep.id).forEach(epci => {
                         //         const _obj = {};
-                        //         _obj.idLevelO = region.id;
+                        //         _obj.idLevel0 = region.id;
                         //         _obj.idLevel1 = dep.id;
                         //         _obj.idLevel2 = epci.id;
                         //         _obj.name = epci.name;
@@ -248,12 +263,21 @@ router.get('/initTree', (req, res) => {
                     objRegionParsed.children = listDepParsed
                     list.push(objRegionParsed);
                 })
-
+                const obj = {
+                    name: dbPays.rows[0].name,
+                    id: dbPays.rows[0].id,
+                    level: -1,
+                    isExpended:false,
+                    isToggled: false,
+                    children:list
+                }
+            
                 res.type('json')
-                res.send(list); // send the expected format to the tree view
+                res.send([obj]); // send the expected format to the tree view
             })
         })
     });
+})
 
 })
 
