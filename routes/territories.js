@@ -145,7 +145,7 @@ router.post('/findByName', (req, res) => {
 
 router.get('/tree/:id', (req, res) => {
     const list = [];
-    pool.query(`SELECT id, name FROM territories  WHERE parent_id =  '${req.params.id}' `, (err, dbRes) => {
+    pool.query(`SELECT id, name, code, kind FROM territories  WHERE parent_id =  '${req.params.id}' `, (err, dbRes) => {
         if (req.query.level == 2 || req.query.level == 3) {
             pool.query(`SELECT id, parent_id FROM territories  WHERE id =  '${req.params.id}' `, (err, dbIdParentRes) => {
                 pool.query(`SELECT parent_id FROM territories  WHERE id =  '${dbIdParentRes.rows[0]['parent_id']}' `, (err, dbIdGrandParentRes) => {
@@ -154,7 +154,8 @@ router.get('/tree/:id', (req, res) => {
                             'level':  parseInt(req.query.level),
                             'children': [],
                             'isToggled': false,
-                            'isExpended': false
+                            'isExpended': false,
+                            'pcode': elm.kind + elm.code
                         }
                         if (req.query.level == 2) {
                             obj.idLevel0 = dbIdParentRes.rows[0]['parent_id'];
@@ -195,10 +196,9 @@ router.get('/tree/:id', (req, res) => {
 
 
 router.get('/initTree', (req, res) => {
-    pool.query("SELECT  id, name FROM territories where kind = 'PAYS'", (err, dbPays) => {
-    pool.query("SELECT  id, parent_id, name FROM territories where kind = 'FRREGI' order by name asc", (err, dbRegion) => {
-        pool.query("SELECT  id, parent_id, name FROM territories where kind = 'FRDEPA'", (err, dbDepart) => {
-            pool.query("SELECT  id, parent_id, name FROM territories where kind = 'FREPCI'", (err, dbEpci) => {
+    pool.query("SELECT  id, name, kind, code FROM territories where kind = 'PAYS'", (err, dbPays) => {
+    pool.query("SELECT  id, parent_id, name, kind, code FROM territories where kind = 'FRREGI' order by name asc", (err, dbRegion) => {
+        pool.query("SELECT  id, parent_id, name, kind, code FROM territories where kind = 'FRDEPA'", (err, dbDepart) => {
                 const hashDepartement = new HashMap();
                 // hash map : key id region value : departement
                 dbDepart.rows.forEach(departement => {
@@ -208,21 +208,9 @@ router.get('/initTree', (req, res) => {
                         hashDepartement.set(departement.parent_id, [departement]);
                     }
                 });
-
-                //  // hash map : key id departement value : epci
-                // const hashEpci = new HashMap();
-                // dbEpci.rows.forEach(epci=>{
-                //     if(hashEpci.has(epci.parent_id)){
-                //         hashEpci.set(hashEpci.get(epci.parent_id).push(epci))
-                //     } else {
-                //         hashEpci.set(epci.parent_id, [epci]);
-                //     }
-                // })
-
                 //parse data
                 const list = [];
                 dbRegion.rows.forEach(region => {
-
                     const objRegionParsed = {};
                     objRegionParsed.idLevel0 = region.id;
                     objRegionParsed.name = region.name;
@@ -230,6 +218,7 @@ router.get('/initTree', (req, res) => {
                     objRegionParsed.level = 0;
                     objRegionParsed.isToggled = false;
                     objRegionParsed.isExpended = false;
+                    objRegionParsed.pcode = region.kind + region.code
 
                     const listDepParsed = [];
                     hashDepartement.get(region.id).forEach(dep => {
@@ -241,23 +230,7 @@ router.get('/initTree', (req, res) => {
                         _obj.level = 1;
                         _obj.isToggled = false
                         _obj.isExpended = false;
-
-
-                        // if(hashEpci.get(dep.id)){ // no EPCI for Hauts-de-Seine for example
-                        //     const listEpciParsed = [];
-                        //     hashEpci.get(dep.id).forEach(epci => {
-                        //         const _obj = {};
-                        //         _obj.idLevel0 = region.id;
-                        //         _obj.idLevel1 = dep.id;
-                        //         _obj.idLevel2 = epci.id;
-                        //         _obj.name = epci.name;
-                        //         _obj.id = epci.id;
-                        //         _obj.level = 2;
-                        //         listEpciParsed.push(_obj);
-                        //     });
-                        //     _obj.children = listEpciParsed;
-                        // }
-
+                        _obj.pcode = dep.kind + dep.code;
                         listDepParsed.push(_obj);
                     });
                     objRegionParsed.children = listDepParsed
@@ -269,7 +242,8 @@ router.get('/initTree', (req, res) => {
                     level: -1,
                     isExpended:false,
                     isToggled: false,
-                    children:list
+                    children:list,
+                    pcode: dbPays.rows[0].kind + dbPays.rows[0].code
                 }
             
                 res.type('json')
@@ -277,8 +251,6 @@ router.get('/initTree', (req, res) => {
             })
         })
     });
-})
-
 })
 
 module.exports = router;
