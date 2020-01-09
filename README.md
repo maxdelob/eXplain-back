@@ -1,9 +1,11 @@
 # eXplain-back
 API pour interview full stack
 
-
-1. express
-2. ec2
-3. 
+Build on express
 
 
+To run locally
+
+1. git clone 
+2. npm i
+3. npm run start
